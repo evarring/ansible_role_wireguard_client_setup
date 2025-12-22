@@ -1,0 +1,124 @@
+#!/usr/bin/env ansible
+# SPDX-License-Identifier: MIT-0
+---
+# tasks file for ansible_role_wireguard_client_setup
+
+- name: Fail early when required variables are missing
+  ansible.builtin.assert:
+    that:
+      - wireguard_client_setup_connection_name is defined
+      - wireguard_client_setup_endpoint is defined
+      - wireguard_client_setup_allowedips is defined
+      - wireguard_client_setup_dns is defined
+      - wireguard_client_setup_address is defined
+      - wireguard_client_setup_privatekey is defined
+      - wireguard_client_setup_publickey is defined
+    fail_msg: "One or more required WireGuard variables are not defined. See role README for details."
+  tags: always
+  no_log: true
+
+- name: Determine distro-specific package names
+  ansible.builtin.set_fact:
+    wireguard_client_packages: >-
+      {{ ['NetworkManager','wireguard-tools'] if ansible_facts['os_family'] == 'RedHat' else ['network-manager','wireguard-tools'] }}
+
+- name: Install required packages
+  ansible.builtin.package:
+    name: "{{ wireguard_client_packages }}"
+    state: present
+  tags:
+    - installation
+
+- name: Ensure NetworkManager is running
+  ansible.builtin.systemd:
+    name: NetworkManager
+    state: started
+    enabled: true
+  tags:
+    - installation
+
+- name: Load WireGuard kernel module
+  community.general.modprobe:
+    name: wireguard
+    state: present
+  tags:
+    - installation
+
+- name: Check if nmconnection already exists
+  ansible.builtin.stat:
+    path: "/etc/NetworkManager/system-connections/{{ wireguard_client_setup_connection_name }}.nmconnection"
+  register: wireguard_file
+  tags:
+    - config
+
+- name: When connection is absent create and import temporary profile
+  when: not wireguard_file.stat.exists
+  tags:
+    - config
+  block:
+    - name: Create secure temporary file for wireguard profile
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .conf
+        mode: '0600'
+      register: wg_conf_file
+
+    - name: Render wireguard profile into temp file (contains secrets)
+      ansible.builtin.template:
+        src: wireguardprofile.conf.j2
+        dest: "{{ wg_conf_file.path }}"
+        mode: '0600'
+      become_user: "{{ ansible_user }}"
+      no_log: true
+
+    - name: Import wireguard profile into NetworkManager
+      ansible.builtin.command: "nmcli connection import type wireguard file {{ wg_conf_file.path }}"
+      args:
+        creates: "/etc/NetworkManager/system-connections/{{ wireguard_client_setup_connection_name }}.nmconnection"
+      register: nmcli_import
+
+    - name: Reload NetworkManager connections once after import
+      ansible.builtin.command: nmcli connection reload
+      when: nmcli_import is succeeded
+
+    - name: Remove temporary wireguard profile file
+      ansible.builtin.file:
+        path: "{{ wg_conf_file.path }}"
+        state: absent
+      no_log: true
+
+- name: Configure autoconnect
+  community.general.nmcli:
+    conn_name: "{{ wireguard_client_setup_connection_name }}"
+    autoconnect: "{{ wireguard_client_setup_autoconnect | default(false) }}"
+    state: present
+  tags:
+    - config
+
+- name: Get active NetworkManager connections
+  ansible.builtin.command: nmcli -g NAME connection show --active
+  register: nm_active_conns
+  changed_when: false
+  failed_when: false
+  tags:
+    - up
+    - down
+    - never
+
+- name: Bring up the WireGuard connection (only if not already active)
+  community.general.nmcli:
+    conn_name: "{{ wireguard_client_setup_connection_name }}"
+    state: up
+  when: wireguard_client_setup_connection_name not in (nm_active_conns.stdout_lines | default([]))
+  tags:
+    - up
+    - never
+
+- name: Take down the WireGuard connection (only if currently active)
+  community.general.nmcli:
+    conn_name: "{{ wireguard_client_setup_connection_name }}"
+    state: down
+  when: wireguard_client_setup_connection_name in (nm_active_conns.stdout_lines | default([]))
+  tags:
+    - down
+    - never

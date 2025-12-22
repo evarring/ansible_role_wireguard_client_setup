@@ -1,0 +1,11 @@
+[Interface]
+PrivateKey = {{ wireguard_client_setup_privatekey }}
+Address = {{ wireguard_client_setup_address }}
+DNS = {{ wireguard_client_setup_dns }}
+
+[Peer]
+PublicKey = {{ wireguard_client_setup_publickey }}
+PresharedKey = {{ wireguard_client_setup_presharedkey }}
+AllowedIPs = {{ wireguard_client_setup_allowedips }}
+Endpoint = {{ wireguard_client_setup_endpoint }}
+PersistentKeepalive = {{ wireguard_client_setup_persistentkeepalive | default('25') }}

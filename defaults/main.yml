@@ -1,0 +1,21 @@
+---
+# SPDX-License-Identifier: MIT-0
+# defaults file for ansible_role_wireguard_client_setup
+
+# NOTE: Do NOT store real private keys here in cleartext. Use Ansible Vault
+# or an external secrets manager for all sensitive values.
+
+# Example (uncomment and override in playbook/host_vars):
+# wireguard_client_setup_connection_name: "connectionname"
+# wireguard_client_setup_endpoint: "vpn.domain.com:51800"
+# wireguard_client_setup_allowedips: "10.1.1.1/29,10.2.2.1/30"
+# wireguard_client_setup_dns: "10.1.2.1"
+# wireguard_client_setup_address: "10.1.2.23/32"
+# wireguard_client_setup_privatekey: "<vault:wireguard_privatekey>"
+# wireguard_client_setup_publickey: "<peer-public-key>"
+# wireguard_client_setup_presharedkey: "<optional-preshared-key>"
+
+# Safe defaults
+wireguard_client_setup_autoconnect: false
+wireguard_client_setup_persistentkeepalive: 25
+...
