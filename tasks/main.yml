@@ -60,7 +60,6 @@
       ansible.builtin.tempfile:
         state: file
         suffix: .conf
-        mode: '0600'
       register: wg_conf_file
 
     - name: Render wireguard profile into temp file (contains secrets)
