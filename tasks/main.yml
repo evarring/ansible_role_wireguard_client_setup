@@ -17,52 +17,97 @@
   tags: always
   no_log: true
 
-- name: Determine distro-specific package names
-  ansible.builtin.set_fact:
-    wireguard_client_packages: >-
-      {{ ['NetworkManager','wireguard-tools'] if ansible_facts['os_family'] == 'RedHat' else ['network-manager','wireguard-tools'] }}
-
-- name: Install required packages
-  ansible.builtin.package:
-    name: "{{ wireguard_client_packages }}"
-    state: present
+- name: Install block
   tags:
-    - installation
+    - install
+  block:
+    - name: Determine distro-specific package names
+      ansible.builtin.set_fact:
+        wireguard_client_packages: >-
+          {{ ['NetworkManager','wireguard-tools'] if ansible_facts['os_family'] == 'RedHat' else ['network-manager','wireguard-tools'] }}
 
-- name: Ensure NetworkManager is running
-  ansible.builtin.systemd:
-    name: NetworkManager
-    state: started
-    enabled: true
-  tags:
-    - installation
+    - name: Install required packages
+      ansible.builtin.package:
+        name: "{{ wireguard_client_packages }}"
+        state: present
 
-- name: Load WireGuard kernel module
-  community.general.modprobe:
-    name: wireguard
-    state: present
-  tags:
-    - installation
+    - name: Ensure NetworkManager is running
+      ansible.builtin.systemd:
+        name: NetworkManager
+        state: started
+        enabled: true
+
+    - name: Load WireGuard kernel module
+      community.general.modprobe:
+        name: wireguard
+        state: present
 
 - name: Check if nmconnection already exists
   ansible.builtin.stat:
     path: "/etc/NetworkManager/system-connections/{{ wireguard_client_setup_connection_name }}.nmconnection"
   register: wireguard_file
   tags:
-    - config
+    - always
 
 - name: Set variable based on file existence
   ansible.builtin.set_fact:
     setup_wireguard_check: "{{ wireguard_file.stat.exists }}"
+  tags:
+    - always
 
 - name: When the connection does not exist, run template and import
   when: setup_wireguard_check is false
+  tags:
+    - config
   block:
     - name: Copy the wireguard connection template file
       ansible.builtin.template:
         src: "wireguardprofile.conf.j2"
         dest: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
         mode: '0600'
+
+    - name: Reload connections
+      ansible.builtin.command: nmcli connection reload
+
+    - name: Import wireguard profile
+      ansible.builtin.command: "nmcli connection import type wireguard file {{ wireguard_client_setup_connection_name }}.conf"
+      args:
+        chdir: "{{ ansible_facts['env']['HOME'] }}"
+        creates: "/etc/NetworkManager/system-connections/{{ wireguard_client_setup_connection_name }}.nmconnection"
+
+    - name: Reload connections
+      ansible.builtin.command: nmcli connection reload
+
+    - name: Cleanup wireguard template file
+      ansible.builtin.file:
+        path: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
+        state: absent
+
+- name: Recreate a connection
+  tags:
+    - recreate
+    - never
+  block:
+    - name: Copy the wireguard connection template file
+      ansible.builtin.template:
+        src: "wireguardprofile.conf.j2"
+        dest: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
+        mode: '0600'
+
+    - name: Get active NetworkManager connections
+      ansible.builtin.command: nmcli -g NAME connection show --active
+      register: nm_active_conns
+      changed_when: false
+      failed_when: false
+
+    - name: Take down the WireGuard connection (only if currently active)
+      community.general.nmcli:
+        conn_name: "{{ wireguard_client_setup_connection_name }}"
+        state: down
+      when: wireguard_client_setup_connection_name in (nm_active_conns.stdout_lines | default([]))
+
+    - name: Remove existing connection
+      ansible.builtin.command: "nmcli connection delete {{ wireguard_client_setup_connection_name }}"
 
     - name: Reload connections
       ansible.builtin.command: nmcli connection reload
@@ -116,3 +161,4 @@
   tags:
     - down
     - never
+...
