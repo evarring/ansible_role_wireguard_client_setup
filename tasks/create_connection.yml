@@ -17,11 +17,12 @@
 - name: Configure autoconnect
   community.general.nmcli:
     conn_name: "{{ wireguard_client_setup_connection_name }}"
+    conn_reload: true
     autoconnect: "{{ wireguard_client_setup_autoconnect | default(false) }}"
     state: present
 
-- name: Reload connections
-  ansible.builtin.command: nmcli connection reload
+# - name: Reload connections
+#   ansible.builtin.command: nmcli connection reload
 
 - name: Cleanup wireguard template file
   ansible.builtin.file:
