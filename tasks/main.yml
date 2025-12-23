@@ -51,39 +51,31 @@
   tags:
     - config
 
-- name: When connection is absent create and import temporary profile
-  when: not wireguard_file.stat.exists
-  tags:
-    - config
+- name: When the connection does not exist, run template and import
+  when: setup_wireguard_check is false
   block:
-    - name: Create secure temporary file for wireguard profile
-      ansible.builtin.tempfile:
-        state: file
-        suffix: .conf
-      register: wg_conf_file
-
-    - name: Render wireguard profile into temp file (contains secrets)
+    - name: Copy the wireguard connection template file
       ansible.builtin.template:
-        src: wireguardprofile.conf.j2
-        dest: "{{ wg_conf_file.path }}"
+        src: "wireguardprofile.conf.j2"
+        dest: "{{ ansible_env.HOME }}/{{ setup_wireguard_client_connection_name }}.conf"
         mode: '0600'
-      no_log: true
 
-    - name: Import wireguard profile into NetworkManager
-      ansible.builtin.command: "nmcli connection import type wireguard file {{ wg_conf_file.path }}"
-      args:
-        creates: "/etc/NetworkManager/system-connections/{{ wireguard_client_setup_connection_name }}.nmconnection"
-      register: nmcli_import
-
-    - name: Reload NetworkManager connections once after import
+    - name: Reload connections
       ansible.builtin.command: nmcli connection reload
-      when: nmcli_import is succeeded
 
-    - name: Remove temporary wireguard profile file
+    - name: Import wireguard profile
+      ansible.builtin.command: "nmcli connection import type wireguard file {{ setup_wireguard_client_connection_name }}.conf"
+      args:
+        chdir: "{{ ansible_env.HOME }}"
+        creates: "/etc/NetworkManager/system-connections/{{ setup_wireguard_client_connection_name }}.nmconnection"
+
+    - name: Reload connections
+      ansible.builtin.command: nmcli connection reload
+
+    - name: Cleanup wireguard template file
       ansible.builtin.file:
-        path: "{{ wg_conf_file.path }}"
+        path: "{{ ansible_env.HOME }}/{{ setup_wireguard_client_connection_name }}.conf"
         state: absent
-      no_log: true
 
 - name: Configure autoconnect
   community.general.nmcli:
