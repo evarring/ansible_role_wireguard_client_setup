@@ -51,6 +51,10 @@
   tags:
     - config
 
+- name: Set variable based on file existence
+  ansible.builtin.set_fact:
+    setup_wireguard_check: "{{ wireguard_file.stat.exists }}"
+
 - name: When the connection does not exist, run template and import
   when: setup_wireguard_check is false
   block:
