@@ -67,7 +67,6 @@
         src: wireguardprofile.conf.j2
         dest: "{{ wg_conf_file.path }}"
         mode: '0600'
-      become_user: "{{ ansible_user }}"
       no_log: true
 
     - name: Import wireguard profile into NetworkManager
