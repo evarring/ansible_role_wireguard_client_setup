@@ -61,7 +61,7 @@
     - name: Copy the wireguard connection template file
       ansible.builtin.template:
         src: "wireguardprofile.conf.j2"
-        dest: "{{ ansible_env.HOME }}/{{ wireguard_client_setup_connection_name }}.conf"
+        dest: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
         mode: '0600'
 
     - name: Reload connections
@@ -70,7 +70,7 @@
     - name: Import wireguard profile
       ansible.builtin.command: "nmcli connection import type wireguard file {{ wireguard_client_setup_connection_name }}.conf"
       args:
-        chdir: "{{ ansible_env.HOME }}"
+        chdir: "{{ ansible_facts['env']['HOME'] }}"
         creates: "/etc/NetworkManager/system-connections/{{ wireguard_client_setup_connection_name }}.nmconnection"
 
     - name: Reload connections
@@ -78,7 +78,7 @@
 
     - name: Cleanup wireguard template file
       ansible.builtin.file:
-        path: "{{ ansible_env.HOME }}/{{ wireguard_client_setup_connection_name }}.conf"
+        path: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
         state: absent
 
 - name: Configure autoconnect
