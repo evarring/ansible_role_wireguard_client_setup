@@ -18,29 +18,10 @@
   no_log: true
 
 - name: Install block
+  ansible.builtin.include_tasks:
+    file: install.yml
   tags:
     - install
-  block:
-    - name: Determine distro-specific package names
-      ansible.builtin.set_fact:
-        wireguard_client_packages: >-
-          {{ ['NetworkManager','wireguard-tools'] if ansible_facts['os_family'] == 'RedHat' else ['network-manager','wireguard-tools'] }}
-
-    - name: Install required packages
-      ansible.builtin.package:
-        name: "{{ wireguard_client_packages }}"
-        state: present
-
-    - name: Ensure NetworkManager is running
-      ansible.builtin.systemd:
-        name: NetworkManager
-        state: started
-        enabled: true
-
-    - name: Load WireGuard kernel module
-      community.general.modprobe:
-        name: wireguard
-        state: present
 
 - name: Check if nmconnection already exists
   ansible.builtin.stat:
@@ -57,17 +38,17 @@
 
 - name: When the connection does not exist, create it
   ansible.builtin.include_tasks:
-    name: create_connection.yml
+    file: create_connection.yml
   when: setup_wireguard_check is false
   tags:
     - config
 
 - name: When the connection exists, recreate it
   ansible.builtin.include_tasks:
-    name: recreate_connection.yml
+    file: recreate_connection.yml
+  when: setup_wireguard_check is true
   tags:
     - recreate
-    - never
 
 - name: Get active NetworkManager connections
   ansible.builtin.command: nmcli -g NAME connection show --active
