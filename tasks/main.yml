@@ -84,6 +84,7 @@
         state: absent
 
 - name: Recreate a connection
+  when: setup_wireguard_check is true
   tags:
     - recreate
     - never
@@ -107,7 +108,10 @@
       when: wireguard_client_setup_connection_name in (nm_active_conns.stdout_lines | default([]))
 
     - name: Remove existing connection
-      ansible.builtin.command: "nmcli connection delete {{ wireguard_client_setup_connection_name }}"
+      command: "nmcli connection delete {{ wireguard_client_setup_connection_name }}"
+      register: nmcli_delete
+      failed_when: nmcli_delete.rc not in [0, 10]
+      changed_when: nmcli_delete.rc == 0
 
     - name: Reload connections
       ansible.builtin.command: nmcli connection reload
