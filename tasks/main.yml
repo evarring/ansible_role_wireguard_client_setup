@@ -1,4 +1,3 @@
-#!/usr/bin/env ansible
 # SPDX-License-Identifier: MIT-0
 ---
 # tasks file for ansible_role_wireguard_client_setup
@@ -17,7 +16,7 @@
   tags: always
   no_log: true
 
-- name: Install block
+- name: Include installation tasks
   ansible.builtin.include_tasks:
     file: install.yml
     apply:
@@ -33,13 +32,13 @@
   tags:
     - always
 
-- name: Set variable based on file existence
+- name: Set variable based on file state
   ansible.builtin.set_fact:
     setup_wireguard_check: "{{ wireguard_file.stat.exists }}"
   tags:
     - always
 
-- name: When the connection does not exist, create it
+- name: When the connection does not exist, include creation tasks
   ansible.builtin.include_tasks:
     file: create_connection.yml
     apply:
@@ -49,7 +48,7 @@
   tags:
     - config
 
-- name: When the connection exists, recreate it
+- name: When the connection exists, inclute tasks to recreate it
   ansible.builtin.include_tasks:
     file: recreate_connection.yml
     apply:
