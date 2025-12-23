@@ -55,88 +55,19 @@
   tags:
     - always
 
-- name: When the connection does not exist, run template and import
+- name: When the connection does not exist, create it
+  ansible.builtin.include_tasks:
+    name: create_connection.yml
   when: setup_wireguard_check is false
   tags:
     - config
-  block:
-    - name: Copy the wireguard connection template file
-      ansible.builtin.template:
-        src: "wireguardprofile.conf.j2"
-        dest: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
-        mode: '0600'
 
-    - name: Reload connections
-      ansible.builtin.command: nmcli connection reload
-
-    - name: Import wireguard profile
-      ansible.builtin.command: "nmcli connection import type wireguard file {{ wireguard_client_setup_connection_name }}.conf"
-      args:
-        chdir: "{{ ansible_facts['env']['HOME'] }}"
-        creates: "/etc/NetworkManager/system-connections/{{ wireguard_client_setup_connection_name }}.nmconnection"
-
-    - name: Reload connections
-      ansible.builtin.command: nmcli connection reload
-
-    - name: Cleanup wireguard template file
-      ansible.builtin.file:
-        path: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
-        state: absent
-
-- name: Recreate a connection
-  when: setup_wireguard_check is true
+- name: When the connection exists, recreate it
+  ansible.builtin.include_tasks:
+    name: recreate_connection.yml
   tags:
     - recreate
     - never
-  block:
-    - name: Copy the wireguard connection template file
-      ansible.builtin.template:
-        src: "wireguardprofile.conf.j2"
-        dest: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
-        mode: '0600'
-
-    - name: Get active NetworkManager connections
-      ansible.builtin.command: nmcli -g NAME connection show --active
-      register: nm_active_conns
-      changed_when: false
-      failed_when: false
-
-    - name: Take down the WireGuard connection (only if currently active)
-      community.general.nmcli:
-        conn_name: "{{ wireguard_client_setup_connection_name }}"
-        state: down
-      when: wireguard_client_setup_connection_name in (nm_active_conns.stdout_lines | default([]))
-
-    - name: Remove existing connection
-      command: "nmcli connection delete {{ wireguard_client_setup_connection_name }}"
-      register: nmcli_delete
-      failed_when: nmcli_delete.rc not in [0, 10]
-      changed_when: nmcli_delete.rc == 0
-
-    - name: Reload connections
-      ansible.builtin.command: nmcli connection reload
-
-    - name: Import wireguard profile
-      ansible.builtin.command: "nmcli connection import type wireguard file {{ wireguard_client_setup_connection_name }}.conf"
-      args:
-        chdir: "{{ ansible_facts['env']['HOME'] }}"
-        creates: "/etc/NetworkManager/system-connections/{{ wireguard_client_setup_connection_name }}.nmconnection"
-
-    - name: Reload connections
-      ansible.builtin.command: nmcli connection reload
-
-    - name: Cleanup wireguard template file
-      ansible.builtin.file:
-        path: "{{ ansible_facts['env']['HOME'] }}/{{ wireguard_client_setup_connection_name }}.conf"
-        state: absent
-
-- name: Configure autoconnect
-  community.general.nmcli:
-    conn_name: "{{ wireguard_client_setup_connection_name }}"
-    autoconnect: "{{ wireguard_client_setup_autoconnect | default(false) }}"
-    state: present
-  tags:
-    - config
 
 - name: Get active NetworkManager connections
   ansible.builtin.command: nmcli -g NAME connection show --active
