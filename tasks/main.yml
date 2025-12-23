@@ -18,8 +18,11 @@
   no_log: true
 
 - name: Install block
-  ansible.builtin.import_tasks:
+  ansible.builtin.include_tasks:
     file: install.yml
+    apply:
+      tags:
+        - install
   tags:
     - install
 
@@ -37,15 +40,21 @@
     - always
 
 - name: When the connection does not exist, create it
-  ansible.builtin.import_tasks:
+  ansible.builtin.include_tasks:
     file: create_connection.yml
+    apply:
+      tags:
+        - config
   when: setup_wireguard_check is false
   tags:
     - config
 
 - name: When the connection exists, recreate it
-  ansible.builtin.import_tasks:
+  ansible.builtin.include_tasks:
     file: recreate_connection.yml
+    apply:
+      tags:
+        - recreate
   when: setup_wireguard_check is true
   tags:
     - recreate
